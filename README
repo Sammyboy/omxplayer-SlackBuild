@@ -1,0 +1,6 @@
+OMXPlayer -- Raspberry Pi command line OMX player
+
+OMXPlayer was developed as a testbed for the XBMC Raspberry PI implementation and is quite handy to use standalone.
+It's a video player which supports hardware acceleration on the Raspberry PI.
+
+https://github.com/popcornmix/omxplayer/

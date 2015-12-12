@@ -1,0 +1,16 @@
+# HOW TO EDIT THIS FILE:
+# The "handy ruler" below makes it easier to edit a package description.  Line
+# up the first '|' above the ':' following the base package name, and the '|'
+# on the right side marks the last column you can put a character in.  You must
+# make exactly 11 lines for the formatting to be correct.  It's also
+# customary to leave one space after the ':'.
+
+          |-----handy-ruler------------------------------------------------------|
+omxplayer: OMXPlayer -- Raspberry Pi command line OMX player
+omxplayer:
+omxplayer: OMXPlayer was developed as a testbed for the XBMC Raspberry PI
+omxplayer: implementation omxplayer: and is quite handy to use standalone.
+omxplayer: It's a video player which supports hardware acceleration on the
+omxplayer: Raspberry PI.
+omxplayer: 
+omxplayer: https://github.com/popcornmix/omxplayer/

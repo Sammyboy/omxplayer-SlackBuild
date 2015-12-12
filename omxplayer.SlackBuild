@@ -1,0 +1,152 @@
+#!/bin/sh
+#
+# Slackware build script for OMXPlayer
+#
+# Written 2015 by Marek Srejma <sam_web@yahoo.de>
+# All rights reserved.
+#
+# Redistribution and use of this script, with or without modification, is
+# permitted provided that the following conditions are met:
+#
+# 1. Redistributions of this script must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ''AS IS'' AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+# EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+# OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+# WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+# OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+# ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+PRGNAM=omxplayer
+VERSION=${VERSION:-git}
+#GITDATE=${GITDATE:-"20150402"}
+BUILD=${BUILD:-2}
+TAG=${TAG:-_sam}
+
+GITURI="https://github.com/popcornmix/omxplayer.git"
+
+[ -z "$GITDATE" ] && GITDATE=`date +%Y%m%d`
+ARCHIVE=${PRGNAM}-${VERSION}_${GITDATE}.tar.gz
+
+if [ -z "$ARCH" ]; then
+  case "$( uname -m )" in
+    arm*) ARCH=arm ;;
+       *) echo "ERROR: Only ARM processors are supported!"; exit 1 ;;
+  esac
+fi
+
+CWD=$(pwd)
+TMP=${TMP:-/tmp/SBo}
+PKG=$TMP/package-$PRGNAM
+OUTPUT=${OUTPUT:-/tmp}
+# Using soft floating point support as default, since that is the one currently
+# supported on Slackware ARM
+FLOAT=${FLOAT:-soft}
+
+set -eu
+
+if [ ! -e $ARCHIVE ]; then
+  mkdir $PRGNAM-$VERSION
+  cd $PRGNAM-$VERSION
+  if [ $GITDATE -eq `date +%Y%m%d` ]; then
+    git clone --depth=1 $GITURI .
+  else
+    git clone $GITURI .
+    git checkout $(git rev-list -n 1 --before="`date -d $GITDATE`" master)
+  fi
+  bash gen_version.sh > version.h
+  chown -R root:root .
+  cd ..
+  tar --exclude .git -zcf $ARCHIVE $PRGNAM-$VERSION
+  rm -rf $PRGNAM-$VERSION
+  chown `stat -c '%U:%G' .` $ARCHIVE
+fi
+
+rm -rf $PKG
+mkdir -p $TMP $PKG
+cd $TMP
+rm -rf $PRGNAM-$VERSION
+tar xvf $CWD/$ARCHIVE
+chown -R root:root $PRGNAM-$VERSION
+chmod -R u+w,go+r-w,a-s $PRGNAM-$VERSION
+cd $PRGNAM-$VERSION
+
+### Patching makefiles
+
+echo;echo -n "Patching makefiles..."
+cat << EOF > Makefile.include
+FLOAT=$FLOAT
+
+CFLAGS +=  -mfloat-abi=\$(FLOAT) -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mstructure-size-boundary=32 -mno-sched-prolog `pkg-config dbus-1 --cflags`
+
+BUILDROOT := /usr/local/src/omxplayer
+TOOLCHAIN := /usr
+LD        := \$(TOOLCHAIN)/bin/ld
+CC        := \$(TOOLCHAIN)/bin/gcc
+CXX       := \$(TOOLCHAIN)/bin/g++
+OBJDUMP   := \$(TOOLCHAIN)/bin/objdump
+RANLIB    := \$(TOOLCHAIN)/bin/ranlib
+STRIP     := \$(TOOLCHAIN)/bin/strip
+AR        := \$(TOOLCHAIN)/bin/ar
+CXXCP     := \$(CXX) -E
+
+LDFLAGS   += -L/opt/vc/lib -L/lib -L/usr/lib -lfreetype
+INCLUDES  += -I/opt/vc/include/interface/vcos/pthreads \
+             -I/opt/vc/include \
+             -I/opt/vc/include/interface/vmcs_host \
+             -I/opt/vc/include/interface/vmcs_host/linux \
+             -I/usr/lib/arm-linux-gnueabihf/dbus-1.0/include \
+             -I/usr/include \
+             -I/usr/include/freetype2
+EOF
+
+sed -e '/--enable-cross-compile/d;' \
+    -e '/--cross-prefix/d;' \
+    -e '/--extra-cflags/ s/-mfpu=vfp //g;' \
+    -i Makefile.ffmpeg
+
+sed -e 's/$(HOST)-//g;' \
+    -e 's/ -j9//g;' \
+    -i Makefile.*
+
+sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
+    -e 's/arm-unknown-linux-gnueabi-strip/strip/g;' \
+    -e 's|/usr/share|/usr|g;' \
+    -e 's|doc/omxplayer|doc/'$PRGNAM-$VERSION'|g' \
+    -e '/$(DIST).tgz/d'\
+    -e '/omxplayer-dist.tar.gz/ s/omxplayer-dist/$(DIST)/' \
+    -e '/^omxplayer.bin/ s/version //' \
+    -i Makefile
+
+echo -e "done.\n"
+### End of patching makefiles
+
+AVAIL_MEM=`awk '
+  (match(tolower($1),"memavailable")) {
+    print int($2/1000)
+    exit
+  }' /proc/meminfo`
+
+if [ ${AVAIL_MEM:-0} -lt 240 ]; then
+  cat << EOF
+In order to compile ffmpeg you need to set gpu_mem to 16 for 256MB RAM PIs (0 does not work) or to at most 256 for 512MB RAM PIs, respectively. Otherwise there is not enough RAM to compile ffmpeg. Please do the apropriate in the /boot/config.txt and select finish to reboot your RPi. Warning: to run compiled omxplayer please edit /boot/config.txt again and set gpu_mem to at least 64. [Press RETURN to continue]"
+EOF
+  read -r REPLY
+fi
+
+make ffmpeg
+make
+make dist DIST=$PKG
+
+cat $CWD/$PRGNAM.SlackBuild > $PKG/usr/doc/$PRGNAM-$VERSION/$PRGNAM.SlackBuild
+
+mkdir -p $PKG/install
+cat $CWD/slack-desc > $PKG/install/slack-desc
+
+cd $PKG
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-${VERSION}_$GITDATE-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
