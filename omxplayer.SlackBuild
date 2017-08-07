@@ -24,8 +24,7 @@
 
 PRGNAM=omxplayer
 VERSION=${VERSION:-git}
-#GITDATE=${GITDATE:-"20150402"}
-BUILD=${BUILD:-2}
+BUILD=${BUILD:-3}
 TAG=${TAG:-_sam}
 
 GITURI="https://github.com/popcornmix/omxplayer.git"
@@ -44,9 +43,6 @@ CWD=$(pwd)
 TMP=${TMP:-/tmp/SBo}
 PKG=$TMP/package-$PRGNAM
 OUTPUT=${OUTPUT:-/tmp}
-# Using soft floating point support as default, since that is the one currently
-# supported on Slackware ARM
-FLOAT=${FLOAT:-soft}
 
 set -eu
 
@@ -59,7 +55,7 @@ if [ ! -e $ARCHIVE ]; then
     git clone $GITURI .
     git checkout $(git rev-list -n 1 --before="`date -d $GITDATE`" master)
   fi
-  bash gen_version.sh > version.h
+  sh gen_version.sh > version.h
   chown -R root:root .
   cd ..
   tar --exclude .git -zcf $ARCHIVE $PRGNAM-$VERSION
@@ -80,9 +76,8 @@ cd $PRGNAM-$VERSION
 
 echo;echo -n "Patching makefiles..."
 cat << EOF > Makefile.include
-FLOAT=$FLOAT
 
-CFLAGS +=  -mfloat-abi=\$(FLOAT) -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mstructure-size-boundary=32 -mno-sched-prolog `pkg-config dbus-1 --cflags`
+CFLAGS +=  -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mstructure-size-boundary=32 -mno-sched-prolog `pkg-config dbus-1 --cflags`
 
 BUILDROOT := /usr/local/src/omxplayer
 TOOLCHAIN := /usr
