@@ -28,7 +28,7 @@ BUILD=${BUILD:-4}
 TAG=${TAG:-_sam}
 
 GITURI="https://github.com/popcornmix/omxplayer.git"
-BRANCH="master"
+BRANCH=${BRANCH:-"master"}
 
 COMMITDATE=${COMMITDATE:-`date +%Y%m%d`} # Default is the most current commit
 
@@ -51,14 +51,26 @@ rm -rf $PRGNAM
 git clone $GITURI $PRGNAM
 cd $PRGNAM
 test $COMMITDATE -eq `date +%Y%m%d` && \
-  git checkout `git rev-list -n1 --all $BRANCH` || \
-  git checkout `git rev-list -n1 --before="`date -d $COMMITDATE`" $BRANCH`
+  git checkout `git rev-list -n1 --all $BRANCH 2> /dev/null` 2> /dev/null || \
+  git checkout `git rev-list -n1 \
+      --before="`date -d $COMMITDATE`" $BRANCH 2> /dev/null` 2> /dev/null
 
-VERSION=${VERSION}_`git describe --tags --always | tr - _`
+HASH=`git describe --tags --always 2> /dev/null`
+COMMITDATE=`git show -s --format=%ci $HASH 2> /dev/null`
+VERSION=${VERSION}_${HASH//-/_}
 
-./gen_version.sh > version.h
+cat <<EOF > version.h
+#ifndef __VERSION_H__
+#define __VERSION_H__
+#define VERSION_DATE "$COMMITDATE"
+#define VERSION_HASH "$HASH"
+#define VERSION_BRANCH "$BRANCH"
+#define VERSION_REPO "$GITURI"
+#endif
+EOF
+
 chown -R root:root .
-cd -
+cd - $> /dev/null
 
 ARCHIVE=$PRGNAM-$VERSION.tar.bz2
 
