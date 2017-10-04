@@ -2,7 +2,7 @@
 #
 # Slackware build script for OMXPlayer
 #
-# Written 2015-2017 by Marek Srejma <sam_web@yahoo.de>
+# Written 2015 by Marek Srejma <sam_web@yahoo.de>
 # All rights reserved.
 #
 # Redistribution and use of this script, with or without modification, is
@@ -24,20 +24,20 @@
 
 PRGNAM=omxplayer
 VERSION=${VERSION:-git}
-BUILD=${BUILD:-4}
+BUILD=${BUILD:-3}
 TAG=${TAG:-_sam}
 
 GITURI="https://github.com/popcornmix/omxplayer.git"
-BRANCH="master"
 
-COMMITDATE=${COMMITDATE:-`date +%Y%m%d`} # Default is the most current commit
+[ -z "$GITDATE" ] && GITDATE=`date +%Y%m%d`
+ARCHIVE=${PRGNAM}-${VERSION}_${GITDATE}.tar.gz
 
-test -z "$ARCH" && {
+if [ -z "$ARCH" ]; then
   case "$( uname -m )" in
     arm*) ARCH=arm ;;
        *) echo "ERROR: Only ARM processors are supported!"; exit 1 ;;
   esac
-}
+fi
 
 CWD=$(pwd)
 TMP=${TMP:-/tmp/SBo}
@@ -46,45 +46,22 @@ OUTPUT=${OUTPUT:-/tmp}
 
 set -eu
 
-# Clone github repo and create an archive
-rm -rf $PRGNAM
-git clone $GITURI $PRGNAM
-cd $PRGNAM
-test $COMMITDATE -eq `date +%Y%m%d` && \
-  git checkout `git rev-list -n1 --all $BRANCH` || \
-  git checkout `git rev-list -n1 --before="`date -d $COMMITDATE`" $BRANCH`
-
-VERSION=${VERSION}_`git describe --tags --always | tr - _`
-
-./gen_version.sh > version.h
-chown -R root:root .
-cd -
-
-ARCHIVE=$PRGNAM-$VERSION.tar.bz2
-
-test -e $ARCHIVE && {
-  printf "\nArchive \"%s\" already exists.\nOverwrite it? (y/N) " $ARCHIVE
-  read KEY
-  egrep -qi "^(y|yes)$" <<<$KEY && rm -f $ARCHIVE || {
-    echo "Keeping the archive."
-    rm -rf $PRGNAM
-    printf "Continue building the package? (y/N) "
-    read KEY
-    egrep -qi "^(y|yes)$" <<<$KEY || {
-      echo "Bye."
-      exit
-    }
-  }
-}
-
-test ! -e $ARCHIVE && {
-  mv -f $PRGNAM $PRGNAM-$VERSION
-  chown -R root:root $PRGNAM-$VERSION
-  tar \
-    -cjf $ARCHIVE $PRGNAM-$VERSION
+if [ ! -e $ARCHIVE ]; then
+  mkdir $PRGNAM-$VERSION
+  cd $PRGNAM-$VERSION
+  if [ $GITDATE -eq `date +%Y%m%d` ]; then
+    git clone --depth=1 $GITURI .
+  else
+    git clone $GITURI .
+    git checkout $(git rev-list -n 1 --before="`date -d $GITDATE`" master)
+  fi
+  sh gen_version.sh > version.h
+  chown -R root:root .
+  cd ..
+  tar --exclude .git -zcf $ARCHIVE $PRGNAM-$VERSION
   rm -rf $PRGNAM-$VERSION
   chown `stat -c '%U:%G' .` $ARCHIVE
-}
+fi
 
 rm -rf $PKG
 mkdir -p $TMP $PKG
@@ -94,8 +71,6 @@ tar xvf $CWD/$ARCHIVE
 chown -R root:root $PRGNAM-$VERSION
 chmod -R u+w,go+r-w,a-s $PRGNAM-$VERSION
 cd $PRGNAM-$VERSION
-
-
 
 ### Patching makefiles
 
@@ -128,7 +103,6 @@ EOF
 sed -e '/--enable-cross-compile/d;' \
     -e '/--cross-prefix/d;' \
     -e '/--extra-cflags/ s/-mfpu=vfp //g;' \
-    -e 's/-mfloat-abi=$(FLOAT) //g' \
     -i Makefile.ffmpeg
 
 sed -e 's/$(HOST)-//g;' \
@@ -153,12 +127,12 @@ AVAIL_MEM=`awk '
     exit
   }' /proc/meminfo`
 
-test ${AVAIL_MEM:-0} -lt 240 && {
+if [ ${AVAIL_MEM:-0} -lt 240 ]; then
   cat << EOF
 In order to compile ffmpeg you need to set gpu_mem to 16 for 256MB RAM PIs (0 does not work) or to at most 256 for 512MB RAM PIs, respectively. Otherwise there is not enough RAM to compile ffmpeg. Please do the apropriate in the /boot/config.txt and select finish to reboot your RPi. Warning: to run compiled omxplayer please edit /boot/config.txt again and set gpu_mem to at least 64. [Press RETURN to continue]"
 EOF
   read -r REPLY
-}
+fi
 
 make ffmpeg
 make
@@ -170,4 +144,4 @@ mkdir -p $PKG/install
 cat $CWD/slack-desc > $PKG/install/slack-desc
 
 cd $PKG
-/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-$VERSION-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
+/sbin/makepkg -l y -c n $OUTPUT/$PRGNAM-${VERSION}_$GITDATE-$ARCH-$BUILD$TAG.${PKGTYPE:-tgz}
