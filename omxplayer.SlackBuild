@@ -22,15 +22,10 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-PRGNAM=omxplayer
+PRGNAM=${PRGNAM:-omxplayer}
 VERSION=${VERSION:-git}
 BUILD=${BUILD:-4}
 TAG=${TAG:-_sam}
-
-GITURI="https://github.com/popcornmix/omxplayer.git"
-BRANCH=${BRANCH:-"master"}
-
-COMMITDATE=${COMMITDATE:-`date +%Y%m%d`} # Default is the most current commit
 
 test -z "$ARCH" && {
   case "$( uname -m )" in
@@ -46,57 +41,62 @@ OUTPUT=${OUTPUT:-/tmp}
 
 set -eu
 
-# Clone github repo and create an archive
-rm -rf $PRGNAM
-git clone $GITURI $PRGNAM
-cd $PRGNAM
+### Start creating an archive from the github repository
+# Git options
+DOWNLOAD=${DOWNLOAD:-"https://github.com/popcornmix/omxplayer.git"}
+BRANCH=${BRANCH:-"master"}
+COMMITDATE=${COMMITDATE:-`date +%Y%m%d`} # Default is the most current commit
+
+# Clone or update github repository
+test -d $PRGNAM/.git && {
+  cd $PRGNAM
+  git pull origin $BRANCH
+  KEEP_GIT=${KEEP_GIT:-1}
+} || {
+  git clone $DOWNLOAD $PRGNAM
+  cd $PRGNAM
+  KEEP_GIT=${KEEP_GIT:-0}
+}
+# Switch to the right branch and commit date
 test $COMMITDATE -eq `date +%Y%m%d` && \
   git checkout `git rev-list -n1 --all $BRANCH 2> /dev/null` 2> /dev/null || \
   git checkout `git rev-list -n1 \
       --before="`date -d $COMMITDATE`" $BRANCH 2> /dev/null` 2> /dev/null
 
+# Get version number and date
 HASH=`git describe --tags --always 2> /dev/null`
 COMMITDATE=`git show -s --format=%ci $HASH 2> /dev/null`
-VERSION=${VERSION}_${HASH//-/_}
 
+# Create the version information source file (replaces using gen_version.sh)
 cat <<EOF > version.h
 #ifndef __VERSION_H__
 #define __VERSION_H__
 #define VERSION_DATE "$COMMITDATE"
 #define VERSION_HASH "$HASH"
 #define VERSION_BRANCH "$BRANCH"
-#define VERSION_REPO "$GITURI"
+#define VERSION_REPO "$DOWNLOAD"
 #endif
 EOF
 
 chown -R root:root .
 cd - $> /dev/null
 
+# Create archive
+VERSION=${VERSION}_${HASH//-/_}
 ARCHIVE=$PRGNAM-$VERSION.tar.bz2
-
-test -e $ARCHIVE && {
-  printf "\nArchive \"%s\" already exists.\nOverwrite it? (y/N) " $ARCHIVE
-  read KEY
-  egrep -qi "^(y|yes)$" <<<$KEY && rm -f $ARCHIVE || {
-    echo "Keeping the archive."
-    rm -rf $PRGNAM
-    printf "Continue building the package? (y/N) "
-    read KEY
-    egrep -qi "^(y|yes)$" <<<$KEY || {
-      echo "Bye."
-      exit
-    }
-  }
+printf "Creating archive %s ... " $ARCHIVE
+rm -rf $PRGNAM-$VERSION
+test $KEEP_GIT -eq 0 && {
+  mv $PRGNAM $PRGNAM-$VERSION
+} || {
+  cp -rf $PRGNAM $PRGNAM-$VERSION
+  chown -R `stat -c '%U:%G' .` $PRGNAM
 }
-
-test ! -e $ARCHIVE && {
-  mv -f $PRGNAM $PRGNAM-$VERSION
-  chown -R root:root $PRGNAM-$VERSION
-  tar \
-    -cjf $ARCHIVE $PRGNAM-$VERSION
-  rm -rf $PRGNAM-$VERSION
-  chown `stat -c '%U:%G' .` $ARCHIVE
-}
+tar --exclude .git -cjf $ARCHIVE $PRGNAM-$VERSION
+rm -rf $PRGNAM-$VERSION
+chown `stat -c '%U:%G' .` $ARCHIVE
+echo "done."
+### End of archive creating
 
 rm -rf $PKG
 mkdir -p $TMP $PKG
@@ -107,11 +107,9 @@ chown -R root:root $PRGNAM-$VERSION
 chmod -R u+w,go+r-w,a-s $PRGNAM-$VERSION
 cd $PRGNAM-$VERSION
 
-
-
 ### Patching makefiles
 
-echo;echo -n "Patching makefiles..."
+printf "\nPatching makefiles ... "
 cat << EOF > Makefile.include
 
 CFLAGS +=  -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mstructure-size-boundary=32 -mno-sched-prolog `pkg-config dbus-1 --cflags`
@@ -156,7 +154,11 @@ sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
     -e '/^omxplayer.bin/ s/version //' \
     -i Makefile
 
-echo -e "done.\n"
+which ronn &> /dev/null && \
+  sed -e 's/curl -F page=@MAN.*/ronn --pipe -r MAN >$@/' \
+    -i Makefile
+
+echo "done."
 ### End of patching makefiles
 
 AVAIL_MEM=`awk '

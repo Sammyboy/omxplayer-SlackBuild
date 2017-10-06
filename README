@@ -5,4 +5,26 @@ It's a video player which supports hardware acceleration on the Raspberry PI.
 
 You'll need to have the RPi firmware files installed in /opt/vc. If that folder doesn't exist, download the firmware files form https://github.com/raspberrypi/firmware and copy them to /opt/vc.
 
+Also, /dev/vchiq must be read and writable for all users. If it's not, run
+  
+  chmod a+rw /dev/vchiq
+  
+as root and add that command line to your /etc/rc.d/rc.local.
+
+
+If you wish to keep the cloned git folder for reuse next time, use 
+
+  KEEP_GIT=1 ./omxplayer
+
+Once the KEEP_GIT option is set to 1, next time(s) the folder will be refreshed instead of new cloning.
+Next time you don't need to set the KEEP_GIT option if you don't want to reset it (the script will set it automatically if the git folder exists).
+To reset that setting, use 
+
+  KEEP_GIT=0 ./omxplayer
+
+and the cloned git folder will be removed after creating the archive file. This also is the standard behaviour if KEEP_GIT was not set to 1.
+
+rubygem-ronn is an optional dependency, useful if the website http://mantastic.herokuapp.com/ is not available on build time and the build script fails to create the file "omxplayer.1". Installing rubygem-ronn is the safe way and recommended.
+
+
 https://github.com/popcornmix/omxplayer/
