@@ -24,6 +24,7 @@ To reset that setting, use
 
 and the cloned git folder will be removed after creating the archive file. This also is the standard behaviour if KEEP_GIT was not set to 1.
 
+
 rubygem-ronn is an optional dependency, useful if the website http://mantastic.herokuapp.com/ is not available on build time and the build script fails to create the file "omxplayer.1". Installing rubygem-ronn is the safe way and recommended.
 
 

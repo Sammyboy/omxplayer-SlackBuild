@@ -24,7 +24,7 @@
 
 PRGNAM=${PRGNAM:-omxplayer}
 VERSION=${VERSION:-git}
-BUILD=${BUILD:-4}
+BUILD=${BUILD:-1}
 TAG=${TAG:-_sam}
 
 test -z "$ARCH" && {
@@ -59,9 +59,9 @@ test -d $PRGNAM/.git && {
 }
 # Switch to the right branch and commit date
 test $COMMITDATE -eq `date +%Y%m%d` && \
-  git checkout `git rev-list -n1 --all $BRANCH 2> /dev/null` 2> /dev/null || \
-  git checkout `git rev-list -n1 \
-      --before="`date -d $COMMITDATE`" $BRANCH 2> /dev/null` 2> /dev/null
+  LONGHASH=`git rev-list -n1 --all $BRANCH 2> /dev/null` || \
+  LONGHASH=`git rev-list -n1 --before="$(date -d $COMMITDATE)" $BRANCH 2> /dev/null`
+git checkout $LONGHASH 2> /dev/null
 
 # Get version number and date
 HASH=`git describe --tags --always 2> /dev/null`
@@ -130,20 +130,21 @@ INCLUDES  += -I/opt/vc/include/interface/vcos/pthreads \
              -I/opt/vc/include \
              -I/opt/vc/include/interface/vmcs_host \
              -I/opt/vc/include/interface/vmcs_host/linux \
-             -I/usr/lib/arm-linux-gnueabihf/dbus-1.0/include \
+             -I/usr/lib/dbus-1.0/include \
              -I/usr/include \
              -I/usr/include/freetype2
 EOF
 
 sed -e '/--enable-cross-compile/d;' \
     -e '/--cross-prefix/d;' \
-    -e '/--extra-cflags/ s/-mfpu=vfp //g;' \
-    -e 's/-mfloat-abi=$(FLOAT) //g' \
+    -e 's/-j$(shell nproc) //g;' \
     -i Makefile.ffmpeg
 
 sed -e 's/$(HOST)-//g;' \
-    -e 's/ -j9//g;' \
-    -i Makefile.*
+    -e '/make/ s/-j[[:alnum:]]* //g;' \
+    -e 's/-mfpu=vfp //g;' \
+    -e 's/-mfloat-abi=[[:alnum:]|[:punct:]]* //g' \
+    -i Makefile*
 
 sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
     -e 's/arm-unknown-linux-gnueabi-strip/strip/g;' \
@@ -152,6 +153,9 @@ sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
     -e '/$(DIST).tgz/d'\
     -e '/omxplayer-dist.tar.gz/ s/omxplayer-dist/$(DIST)/' \
     -e '/^omxplayer.bin/ s/version //' \
+    -e 's|arm-linux-gnueabihf/||' \
+    -e 's/CFLAGS=.*/include Makefile.include/' \
+    -e 's|-I/usr/include/freetype2.*||' \
     -i Makefile
 
 which ronn &> /dev/null && \
