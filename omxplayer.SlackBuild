@@ -79,7 +79,7 @@ cat <<EOF > version.h
 EOF
 
 chown -R root:root .
-cd - $> /dev/null
+cd ..
 
 # Create archive
 VERSION=${VERSION}_${HASH//-/_}
