@@ -14,18 +14,35 @@ as root and add that command line to your /etc/rc.d/rc.local.
 
 If you wish to keep the cloned git folder for reuse next time, use 
 
-  KEEP_GIT=1 ./omxplayer
+  KEEP_GIT=1 ./omxplayer.SlackBuild
 
 Once the KEEP_GIT option is set to 1, next time(s) the folder will be refreshed instead of new cloning.
 Next time you don't need to set the KEEP_GIT option if you don't want to reset it (the script will set it automatically if the git folder exists).
 To reset that setting, use 
 
-  KEEP_GIT=0 ./omxplayer
+  KEEP_GIT=0 ./omxplayer.SlackBuild
 
 and the cloned git folder will be removed after creating the archive file. This also is the standard behaviour if KEEP_GIT was not set to 1.
 
 
-rubygem-ronn is an optional dependency, useful if the website http://mantastic.herokuapp.com/ is not available on build time and the build script fails to create the file "omxplayer.1". Installing rubygem-ronn is the safe way and recommended.
+rubygem-ronn is an optional dependency, useful if the website http://mantastic.herokuapp.com/ is not available on build time and the build script fails to create the man page file "omxplayer.1". Installing rubygem-ronn is the safe way and recommended.
+
+
+The option
+  SOFT_FLOAT=yes    or    SOFT_FLOAT=no
+can be set, otherwise it tries to automatically detect the right one.
+
+Further options are
+  CROSS_COMPILE=yes
+to enable cross compiling
+and
+  WITH_FFMPEG=yes   or   WITH_FFMPEG=no
+to force or avoid building ffmpeg. If this option is not set, it builds ffmpeg if it's not installed and otherwise skips building it.
+
+So for example, building the package on SlackwareARM-current in soft float mode and with ffmpeg, use
+  SOFT_FLOAT=yes WITH_FFMPEG=yes ./omxplayer.SlackBuild
+
+Without these two options the script autodetects ffmpeg and soft float mode.
 
 
 https://github.com/popcornmix/omxplayer/

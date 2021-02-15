@@ -2,7 +2,7 @@
 #
 # Slackware build script for OMXPlayer
 #
-# Written 2015-2017 by Marek Srejma <sam_web@yahoo.de>
+# Written 2015-2021 by Marek Šrejma <sam_web@yahoo.de>
 # All rights reserved.
 #
 # Redistribution and use of this script, with or without modification, is
@@ -24,7 +24,7 @@
 
 PRGNAM=${PRGNAM:-omxplayer}
 VERSION=${VERSION:-git}
-BUILD=${BUILD:-1}
+BUILD=${BUILD:-2}
 TAG=${TAG:-_sam}
 
 test -z "$ARCH" && {
@@ -39,7 +39,26 @@ TMP=${TMP:-/tmp/SBo}
 PKG=$TMP/package-$PRGNAM
 OUTPUT=${OUTPUT:-/tmp}
 
+SOFT_FLOAT=${SOFT_FLOAT:-auto}
+CROSS_COMPILE=${CROSS_COMPILE:-no}
+WITH_FFMPEG=${WITH_FFMPEG:-auto}
+
 set -eu
+
+test "$WITH_FFMPEG" = "auto" && {
+  type -p ffmpeg &>/dev/null && {
+    WITH_FFMPEG=no
+  } || {
+    WITH_FFMPEG=yes
+  }
+}
+
+test "$SOFT_FLOAT" = "auto" && {
+  SOFT_FLOAT=yes
+  test -e /etc/os-release && \
+  grep -q "PRETTY_NAME=.*-current" /etc/os-release && \
+    SOFT_FLOAT=no
+}
 
 ### Start creating an archive from the github repository
 # Git options
@@ -112,7 +131,7 @@ cd $PRGNAM-$VERSION
 printf "\nPatching makefiles ... "
 cat << EOF > Makefile.include
 
-CFLAGS +=  -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mstructure-size-boundary=32 -mno-sched-prolog `pkg-config dbus-1 --cflags`
+CFLAGS +=  -march=native -mcpu=native -mtune=native -mabi=aapcs-linux -fomit-frame-pointer -Wno-psabi -mno-apcs-stack-check -O2 -mno-sched-prolog `pkg-config dbus-1 --cflags`
 
 BUILDROOT := /usr/local/src/omxplayer
 TOOLCHAIN := /usr
@@ -135,15 +154,33 @@ INCLUDES  += -I/opt/vc/include/interface/vcos/pthreads \
              -I/usr/include/freetype2
 EOF
 
-sed -e '/--enable-cross-compile/d;' \
-    -e '/--cross-prefix/d;' \
-    -e 's/-j$(shell nproc) //g;' \
-    -i Makefile.ffmpeg
+test "$SOFT_FLOAT" = "yes" && {
+  sed -e 's/-mfpu=vfp //g;' \
+      -i Makefile
+}
+
+test "$WITH_FFMPEG" = "no" && {
+  sed -e 's/-[LI]ffmpeg_compiled[a-z\/]* //g' \
+      -e '/cp -P ffmpeg_compiled/d' \
+      -i Makefile
+} || {
+  sed -e 's/-j$(shell nproc) //g;' \
+      -i Makefile.ffmpeg
+
+  test "$SOFT_FLOAT" = "yes" && {
+    sed -e '/--extra-cflags/d' \
+      -i Makefile.ffmpeg
+  }
+
+  test "$CROSS_COMPILE" = "no" && {
+    sed -e '/--enable-cross-compile/d;' \
+        -e '/--cross-prefix/d;' \
+        -i Makefile.ffmpeg
+  }
+}
 
 sed -e 's/$(HOST)-//g;' \
     -e '/make/ s/-j[[:alnum:]]* //g;' \
-    -e 's/-mfpu=vfp //g;' \
-    -e 's/-mfloat-abi=[[:alnum:]|[:punct:]]* //g' \
     -i Makefile*
 
 sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
@@ -158,7 +195,11 @@ sed -e 's/#arm-unknown-linux-gnueabi-strip/arm-unknown-linux-gnueabi-strip/g;' \
     -e 's|-I/usr/include/freetype2.*||' \
     -i Makefile
 
-which ronn &> /dev/null && \
+sed -e 's|truetype/freefont/FreeSans\.ttf|TTF/LiberationSans-Regular.ttf|' \
+    -e 's|truetype/freefont/FreeSansOblique\.ttf|TTF/LiberationSans-Italic.ttf|' \
+    -i {omxplayer.cpp,README.md}
+
+type -p ronn &> /dev/null && \
   sed -e 's/curl -F page=@MAN.*/ronn --pipe -r MAN >$@/' \
     -i Makefile
 
@@ -178,7 +219,9 @@ EOF
   read -r REPLY
 }
 
-make ffmpeg
+test "$WITH_FFMPEG" = "yes" && {
+  make ffmpeg
+}
 make
 make dist DIST=$PKG
 
